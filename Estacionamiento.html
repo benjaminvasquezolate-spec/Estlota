@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Estacionamiento v3</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .table-container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+
+<div class="container mt-5">
+    <h2 class="mb-4 text-center">Control de Estacionamiento</h2>
+
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            Ingresar Nuevo Vehículo
+        </div>
+        <div class="card-body">
+            <form id="formIngreso" class="row g-3 align-items-end">
+                <div class="col-md-2">
+                    <label for="patente" class="form-label">Patente</label>
+                    <input type="text" class="form-control" id="patente" placeholder="Ej: AB-CD-12" required>
+                </div>
+                <div class="col-md-2">
+                    <label for="lugar" class="form-label">Lugar (1-26)</label>
+                    <input type="number" class="form-control" id="lugar" min="1" max="26" required>
+                </div>
+                <div class="col-md-2">
+                    <label for="llave" class="form-label">¿Dejó llave?</label>
+                    <select class="form-select" id="llave" required>
+                        <option value="No">No</option>
+                        <option value="Sí">Sí</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="horaManual" class="form-label">Hora Ingreso (Opcional)</label>
+                    <input type="time" class="form-control" id="horaManual">
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-success w-100">Registrar Ingreso</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="table-container mb-4">
+        <table class="table table-striped table-hover" id="tablaEstacionamiento">
+            <thead class="table-dark">
+                <tr>
+                    <th>Patente</th>
+                    <th>Lugar</th>
+                    <th>Llave</th>
+                    <th>Fecha</th>
+                    <th>Hora Ingreso</th>
+                    <th>Estado / Cobro</th>
+                </tr>
+            </thead>
+            <tbody id="cuerpoTabla">
+                </tbody>
+        </table>
+    </div>
+
+    <div class="text-end mb-5">
+        <button id="btnDescargar" class="btn btn-dark fs-5">⬇️ Descargar Cierre del Día (Excel)</button>
+    </div>
+</div>
+
+<script>
+    // Almacenamiento más completo para poder armar el Excel al final
+    const vehiculos = {};
+    let contadorId = 0;
+
+    document.getElementById('formIngreso').addEventListener('submit', function(e) {
+        e.preventDefault(); 
+
+        const patente = document.getElementById('patente').value.toUpperCase();
+        const lugar = document.getElementById('lugar').value;
+        const llave = document.getElementById('llave').value;
+        const horaManual = document.getElementById('horaManual').value;
+
+        // Validar si el lugar ya está ocupado
+        let lugarOcupado = false;
+        for (const id in vehiculos) {
+            if (vehiculos[id].lugar === lugar && vehiculos[id].activo === true) {
+                lugarOcupado = true;
+                break;
+            }
+        }
+
+        if (lugarOcupado) {
+            alert(`⚠️ Error: El lugar número ${lugar} ya está ocupado en este momento.`);
+            return;
+        }
+
+        let fechaActual = new Date();
+        
+        if (horaManual) {
+            const [horas, minutos] = horaManual.split(':');
+            fechaActual.setHours(parseInt(horas), parseInt(minutos), 0, 0);
+        }
+
+        const fechaStr = fechaActual.toLocaleDateString('es-CL');
+        const horaStr = fechaActual.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+        const horaMostrar = horaStr + (horaManual ? ' (Manual)' : '');
+        
+        // Guardar todos los datos en memoria para el Excel
+        const idActual = contadorId++;
+        vehiculos[idActual] = {
+            patente: patente,
+            lugar: lugar,
+            llave: llave,
+            fecha: fechaStr,
+            hora: horaMostrar,
+            tiempoIngresoMs: fechaActual.getTime(),
+            activo: true,
+            totalPagado: 0 // Inicia en 0 hasta que se calcule la deuda
+        };
+
+        // Crear fila en la tabla visual
+        const tbody = document.getElementById('cuerpoTabla');
+        const tr = document.createElement('tr');
+        tr.id = `fila-${idActual}`;
+
+        tr.innerHTML = `
+            <td><strong>${patente}</strong></td>
+            <td><span class="badge bg-secondary fs-6">${lugar}</span></td>
+            <td>${llave}</td>
+            <td>${fechaStr}</td>
+            <td>${horaMostrar}</td>
+            <td id="accion-${idActual}">
+                <button class="btn btn-warning btn-sm" onclick="calcularDeuda(${idActual})">Calcular Deuda</button>
+            </td>
+        `;
+
+        tbody.appendChild(tr);
+
+        document.getElementById('formIngreso').reset();
+        document.getElementById('patente').focus();
+    });
+
+    function calcularDeuda(id) {
+        const tiempoIngresoMs = vehiculos[id].tiempoIngresoMs;
+        const ahora = new Date();
+        
+        const diferenciaMs = ahora.getTime() - tiempoIngresoMs;
+        let diferenciaMinutos = Math.floor(diferenciaMs / 60000);
+        
+        if (diferenciaMinutos < 0) diferenciaMinutos = 0;
+
+        let total = 0;
+
+        if (diferenciaMinutos <= 15) {
+            total = 500;
+        } else if (diferenciaMinutos <= 30) {
+            total = 800;
+        } else {
+            const minutosExtra = diferenciaMinutos - 30;
+            const bloquesExtra = Math.ceil(minutosExtra / 15);
+            total = 800 + (bloquesExtra * 400);
+        }
+
+        // Actualizar el estado en memoria para el Excel
+        vehiculos[id].activo = false;
+        vehiculos[id].totalPagado = total;
+
+        const celdaAccion = document.getElementById(`accion-${id}`);
+        celdaAccion.innerHTML = `<span class="badge bg-success fs-6">Total: $${total}</span> <br><small class="text-muted">(${diferenciaMinutos} min)</small>`;
+    }
+
+    // Nueva función de descarga (Formato Excel con Tabla y Suma Total)
+    document.getElementById('btnDescargar').addEventListener('click', function() {
+        let sumaTotalDia = 0;
+
+        // Construir la estructura HTML que Excel interpretará como tabla
+        let tablaHTML = `
+            <html xmlns:x="urn:schemas-microsoft-com:office:excel">
+            <head><meta charset="utf-8"></head>
+            <body>
+                <table border="1" style="border-collapse: collapse; font-family: Arial, sans-serif;">
+                    <thead>
+                        <tr>
+                            <th style="background-color: #212529; color: white; padding: 10px;">Patente</th>
+                            <th style="background-color: #212529; color: white; padding: 10px;">Lugar</th>
+                            <th style="background-color: #212529; color: white; padding: 10px;">Llave</th>
+                            <th style="background-color: #212529; color: white; padding: 10px;">Fecha</th>
+                            <th style="background-color: #212529; color: white; padding: 10px;">Hora Ingreso</th>
+                            <th style="background-color: #212529; color: white; padding: 10px;">Cobro ($)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        // Llenar los datos de los vehículos
+        for (const id in vehiculos) {
+            const v = vehiculos[id];
+            
+            // Si el auto sigue estacionado dice "Pendiente", si ya se calculó muestra el valor
+            const cobroTexto = v.activo ? "Pendiente" : v.totalPagado; 
+            
+            // Sumar al total del día solo si ya se le calculó la deuda
+            if (!v.activo) {
+                sumaTotalDia += v.totalPagado;
+            }
+
+            tablaHTML += `
+                <tr>
+                    <td style="padding: 5px; text-align: center;"><b>${v.patente}</b></td>
+                    <td style="padding: 5px; text-align: center;">${v.lugar}</td>
+                    <td style="padding: 5px; text-align: center;">${v.llave}</td>
+                    <td style="padding: 5px; text-align: center;">${v.fecha}</td>
+                    <td style="padding: 5px; text-align: center;">${v.hora}</td>
+                    <td style="padding: 5px; text-align: center;">${cobroTexto}</td>
+                </tr>
+            `;
+        }
+
+        // Agregar la fila final con la suma total
+        tablaHTML += `
+                    <tr>
+                        <td colspan="5" style="text-align: right; padding: 10px; font-size: 16px;"><b>TOTAL DEL DÍA RECAUDADO:</b></td>
+                        <td style="padding: 10px; font-size: 16px; color: green;"><b>$${sumaTotalDia}</b></td>
+                    </tr>
+                </tbody>
+            </table>
+            </body>
+            </html>
+        `;
+
+        // Generar el archivo .xls
+        const blob = new Blob([tablaHTML], { type: 'application/vnd.ms-excel' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        
+        const fechaHoy = new Date().toISOString().split('T')[0];
+        link.download = `Cierre_Estacionamiento_${fechaHoy}.xls`;
+        link.href = url;
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
