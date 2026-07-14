@@ -74,20 +74,17 @@
 </div>
 
 <script>
-    // =========================================================
-    // ⚠️ PASO CRUCIAL: REEMPLAZA LAS LÍNEAS DE ABAJO CON TUS CREDENCIALES
-    // =========================================================
+    // Credenciales de Firebase integradas automáticamente
     const firebaseConfig = {
-  apiKey: "AIzaSyA9Ppec3_e-eADc2-01_T_KASq0_yeSLck",
-  authDomain: "estacionamientolota-83402.firebaseapp.com",
-  databaseURL: "https://estacionamientolota-83402-default-rtdb.firebaseio.com",
-  projectId: "estacionamientolota-83402",
-  storageBucket: "estacionamientolota-83402.firebasestorage.app",
-  messagingSenderId: "720067725520",
-  appId: "1:720067725520:web:d72c29b8603b9aa3ec76d5",
-  measurementId: "G-Y824TV1C8H"
-};
-    // =========================================================
+      apiKey: "AIzaSyA9Ppec3_e-eADc2-01_T_KASq0_yeSLck",
+      authDomain: "estacionamientolota-83402.firebaseapp.com",
+      databaseURL: "https://estacionamientolota-83402-default-rtdb.firebaseio.com",
+      projectId: "estacionamientolota-83402",
+      storageBucket: "estacionamientolota-83402.firebasestorage.app",
+      messagingSenderId: "720067725520",
+      appId: "1:720067725520:web:d72c29b8603b9aa3ec76d5",
+      measurementId: "G-Y824TV1C8H"
+    };
 
     // Inicializar conexión con la nube
     firebase.initializeApp(firebaseConfig);
@@ -212,8 +209,8 @@
         }
     }
 
-    // Descarga de Excel
-    document.getElementById('btnDescargar').addEventListener('click', function() {
+    // FUNCIÓN: Generar y descargar Excel con la hora exacta (HHMMb)
+    function exportarExcel() {
         let sumaTotalDia = 0;
         let tablaHTML = `
             <html xmlns:x="urn:schemas-microsoft-com:office:excel">
@@ -264,13 +261,35 @@
         const blob = new Blob([tablaHTML], { type: 'application/vnd.ms-excel' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        const fechaHoy = new Date().toISOString().split('T')[0];
         
-        link.download = `Cierre_Estacionamiento_${fechaHoy}.xls`;
+        // Obtener la hora exacta de la descarga
+        const ahora = new Date();
+        const fechaHoy = ahora.toISOString().split('T')[0]; // Año-Mes-Día
+        const horas = String(ahora.getHours()).padStart(2, '0');
+        const minutos = String(ahora.getMinutes()).padStart(2, '0');
+        const horaFormatoB = `${horas}${minutos}b`; // Ejemplo: 1530b
+        
+        link.download = `Cierre_Estacionamiento_${fechaHoy}_${horaFormatoB}.xls`;
         link.href = url;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    }
+
+    // Evento manual de descarga por botón
+    document.getElementById('btnDescargar').addEventListener('click', exportarExcel);
+
+    // ====================================================================
+    // SEGURIDAD DE CIERRE: Descarga obligatoria al intentar cerrar la página
+    // ====================================================================
+    window.addEventListener('beforeunload', function (e) {
+        // 1. Descargar el archivo Excel inmediatamente
+        exportarExcel();
+
+        // 2. Mostrar cuadro de confirmación estándar del navegador
+        e.preventDefault();
+        e.returnValue = 'Se descargará automáticamente el cierre de caja antes de salir. ¿Estás seguro de que deseas cerrar la página?';
+        return 'Se descargará automáticamente el cierre de caja antes de salir. ¿Estás seguro de que deseas cerrar la página?';
     });
 </script>
 </body>
