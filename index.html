@@ -73,7 +73,8 @@
     </div>
 
     <!-- Botones de Control -->
-    <div class="d-flex justify-content-end mb-5">
+    <div class="d-flex justify-content-between mb-5">
+        <button id="btnBorrarTodo" class="btn btn-danger" onclick="borrarBaseDatos()">⚠️ Vaciar Registro</button>
         <button id="btnDescargar" class="btn btn-dark fs-5">⬇️ Descargar Cierre (Notepad / Texto)</button>
     </div>
 </div>
@@ -96,6 +97,9 @@
     const dbRef = firebase.database().ref('vehiculos');
 
     let vehiculosLocales = {};
+    
+    // VARIABLE DE SEGURIDAD: Candado para el borrado
+    let registroDescargado = false; 
 
     // ESCUCHAR EN TIEMPO REAL
     dbRef.on('value', (snapshot) => {
@@ -176,6 +180,9 @@
 
         document.getElementById('formIngreso').reset();
         document.getElementById('patente').focus();
+
+        // Al ingresar un nuevo dato, bloqueamos el borrado hasta que se vuelva a descargar
+        registroDescargado = false; 
     });
 
     // Calcular cobros
@@ -205,25 +212,26 @@
             totalPagado: total,
             minutosTranscurridos: diferenciaMinutos
         });
+
+        // Al cobrar un vehículo, bloqueamos el borrado hasta que se vuelva a descargar
+        registroDescargado = false;
     }
 
     // FUNCIÓN: Generar y descargar archivo de texto alineado para el Bloc de Notas
     function exportarTextoNotepad() {
         let sumaTotalDia = 0;
         
-        // Función auxiliar para rellenar con espacios y alinear columnas
         function rpad(str, length) {
             str = String(str);
             return str + ' '.repeat(Math.max(0, length - str.length));
         }
 
         const ahora = new Date();
-        const fechaHoy = ahora.toISOString().split('T')[0]; // Año-Mes-Día
+        const fechaHoy = ahora.toISOString().split('T')[0]; 
         const horas = String(ahora.getHours()).padStart(2, '0');
         const minutos = String(ahora.getMinutes()).padStart(2, '0');
         const horaFormatoB = `${horas}${minutos}b`; 
 
-        // Definición de anchos y separador de tabla (Longitud exacta de 83 caracteres)
         const separator = "+--------------+-------+-------+--------------+--------------------+--------------+\n";
         
         let textOutput = "";
@@ -233,12 +241,10 @@
         textOutput += `Fecha de Emisión: ${fechaHoy} | Hora de Cierre: ${horas}:${minutos}b\n`;
         textOutput += "=".repeat(83) + "\n\n";
         
-        // Cabecera de la tabla
         textOutput += separator;
         textOutput += `| ${rpad("Patente", 12)} | ${rpad("Lugar", 5)} | ${rpad("Llave", 5)} | ${rpad("Fecha", 12)} | ${rpad("Hora Ingreso", 18)} | ${rpad("Cobro ($)", 12)} |\n`;
         textOutput += separator;
 
-        // Filas con datos de vehículos
         for (const id in vehiculosLocales) {
             const v = vehiculosLocales[id];
             const cobroTexto = v.activo ? "Pendiente" : `$${v.totalPagado}`; 
@@ -249,14 +255,12 @@
 
         textOutput += separator;
         
-        // Fila de Total Dinámica con auto-relleno para alineación perfecta
         const totalLabel = `TOTAL DEL DIA RECAUDADO: $${sumaTotalDia}`;
-        const paddingNeeded = 79 - totalLabel.length; // 79 es el espacio interior utilizable
+        const paddingNeeded = 79 - totalLabel.length; 
         textOutput += `| ${totalLabel}${' '.repeat(Math.max(0, paddingNeeded))} |\n`;
         
         textOutput += separator;
 
-        // Crear y disparar la descarga del archivo .txt
         const blob = new Blob([textOutput], { type: 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
@@ -266,6 +270,24 @@
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+
+        // ABRIMOS EL CANDADO: Como ya se descargó, permitimos borrar la base de datos
+        registroDescargado = true;
+    }
+
+    // LÓGICA DE BORRADO SEGURO
+    function borrarBaseDatos() {
+        if (!registroDescargado) {
+            alert("⚠️ ACCIÓN DENEGADA: Debes descargar el archivo de cierre antes de poder vaciar el registro para no perder datos.");
+            return;
+        }
+
+        if(confirm("¿Estás completamente seguro de que deseas eliminar TODOS los registros en la nube? Esta acción es irreversible.")) {
+            dbRef.set(null);
+            // Cerramos el candado de nuevo tras el borrado
+            registroDescargado = false; 
+            alert("✅ La base de datos ha sido limpiada con éxito.");
+        }
     }
 
     // Evento manual de descarga por botón
@@ -275,15 +297,11 @@
     // SEGURIDAD DE CIERRE: Descarga al detectar intento de salir
     // ====================================================================
     window.addEventListener('beforeunload', function (e) {
-        // Se ejecuta la descarga en el instante que el navegador pregunta si quiere salir
         exportarTextoNotepad();
-
-        // Se genera la confirmación nativa del navegador
         e.preventDefault();
         e.returnValue = 'Se descargará automáticamente el cierre de caja antes de salir. ¿Estás seguro de que deseas cerrar la página?';
         return 'Se descargará automáticamente el cierre de caja antes de salir. ¿Estás seguro de que deseas cerrar la página?';
     });
 </script>
 </body>
-</html>
 </html>
