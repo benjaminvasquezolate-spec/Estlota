@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestión de Estacionamiento en la Nube</title>
+    <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Firebase SDK (Librerías de conexión) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     
@@ -18,6 +20,7 @@
 <div class="container mt-5">
     <h2 class="mb-4 text-center">Control de Estacionamiento (Sincronizado)</h2>
 
+    <!-- Formulario de Ingreso -->
     <div class="card mb-4">
         <div class="card-header bg-primary text-white">
             Ingresar Nuevo Vehículo
@@ -50,6 +53,7 @@
         </div>
     </div>
 
+    <!-- Tabla de Vehículos -->
     <div class="table-container mb-4">
         <table class="table table-striped table-hover" id="tablaEstacionamiento">
             <thead class="table-dark">
@@ -63,18 +67,19 @@
                 </tr>
             </thead>
             <tbody id="cuerpoTabla">
-                </tbody>
+                <!-- Los datos se descargarán automáticamente -->
+            </tbody>
         </table>
     </div>
 
-    <div class="d-flex justify-content-between mb-5">
-        <button id="btnBorrarTodo" class="btn btn-danger" onclick="borrarBaseDatos()">⚠️ Vaciar Registro Completo</button>
-        <button id="btnDescargar" class="btn btn-dark fs-5">⬇️ Descargar Cierre del Día (Excel)</button>
+    <!-- Botones de Control -->
+    <div class="d-flex justify-content-end mb-5">
+        <button id="btnDescargar" class="btn btn-dark fs-5">⬇️ Descargar Cierre (Notepad / Texto)</button>
     </div>
 </div>
 
 <script>
-    // Credenciales de Firebase integradas automáticamente
+    // Credenciales reales de tu proyecto Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyA9Ppec3_e-eADc2-01_T_KASq0_yeSLck",
       authDomain: "estacionamientolota-83402.firebaseapp.com",
@@ -202,74 +207,61 @@
         });
     }
 
-    // Limpiar el día completo
-    function borrarBaseDatos() {
-        if(confirm("¿Estás seguro de que deseas eliminar TODOS los registros guardados en la nube? Esta acción no se puede deshacer.")) {
-            dbRef.set(null);
-        }
-    }
-
-    // FUNCIÓN: Generar y descargar Excel con la hora exacta (HHMMb)
-    function exportarExcel() {
+    // FUNCIÓN: Generar y descargar archivo de texto alineado para el Bloc de Notas
+    function exportarTextoNotepad() {
         let sumaTotalDia = 0;
-        let tablaHTML = `
-            <html xmlns:x="urn:schemas-microsoft-com:office:excel">
-            <head><meta charset="utf-8"></head>
-            <body>
-                <table border="1" style="border-collapse: collapse; font-family: Arial, sans-serif;">
-                    <thead>
-                        <tr>
-                            <th style="background-color: #212529; color: white; padding: 10px;">Patente</th>
-                            <th style="background-color: #212529; color: white; padding: 10px;">Lugar</th>
-                            <th style="background-color: #212529; color: white; padding: 10px;">Llave</th>
-                            <th style="background-color: #212529; color: white; padding: 10px;">Fecha</th>
-                            <th style="background-color: #212529; color: white; padding: 10px;">Hora Ingreso</th>
-                            <th style="background-color: #212529; color: white; padding: 10px;">Cobro ($)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-        `;
-
-        for (const id in vehiculosLocales) {
-            const v = vehiculosLocales[id];
-            const cobroTexto = v.activo ? "Pendiente" : v.totalPagado; 
-            if (!v.activo) sumaTotalDia += v.totalPagado;
-
-            tablaHTML += `
-                <tr>
-                    <td style="padding: 5px; text-align: center;"><b>${v.patente}</b></td>
-                    <td style="padding: 5px; text-align: center;">${v.lugar}</td>
-                    <td style="padding: 5px; text-align: center;">${v.llave}</td>
-                    <td style="padding: 5px; text-align: center;">${v.fecha}</td>
-                    <td style="padding: 5px; text-align: center;">${v.hora}</td>
-                    <td style="padding: 5px; text-align: center;">${cobroTexto}</td>
-                </tr>
-            `;
+        
+        // Función auxiliar para rellenar con espacios y alinear columnas
+        function rpad(str, length) {
+            str = String(str);
+            return str + ' '.repeat(Math.max(0, length - str.length));
         }
 
-        tablaHTML += `
-                    <tr>
-                        <td colspan="5" style="text-align: right; padding: 10px; font-size: 16px;"><b>TOTAL DEL DÍA RECAUDADO:</b></td>
-                        <td style="padding: 10px; font-size: 16px; color: green;"><b>$${sumaTotalDia}</b></td>
-                    </tr>
-                </tbody>
-            </table>
-            </body>
-            </html>
-        `;
-
-        const blob = new Blob([tablaHTML], { type: 'application/vnd.ms-excel' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        
-        // Obtener la hora exacta de la descarga
         const ahora = new Date();
         const fechaHoy = ahora.toISOString().split('T')[0]; // Año-Mes-Día
         const horas = String(ahora.getHours()).padStart(2, '0');
         const minutos = String(ahora.getMinutes()).padStart(2, '0');
-        const horaFormatoB = `${horas}${minutos}b`; // Ejemplo: 1530b
+        const horaFormatoB = `${horas}${minutos}b`; 
+
+        // Definición de anchos y separador de tabla (Longitud exacta de 83 caracteres)
+        const separator = "+--------------+-------+-------+--------------+--------------------+--------------+\n";
         
-        link.download = `Cierre_Estacionamiento_${fechaHoy}_${horaFormatoB}.xls`;
+        let textOutput = "";
+        textOutput += "=".repeat(83) + "\n";
+        textOutput += " ".repeat(14) + "REGISTRO DE CONTROL DE ESTACIONAMIENTO - CIERRE DE CAJA\n";
+        textOutput += "=".repeat(83) + "\n";
+        textOutput += `Fecha de Emisión: ${fechaHoy} | Hora de Cierre: ${horas}:${minutos}b\n`;
+        textOutput += "=".repeat(83) + "\n\n";
+        
+        // Cabecera de la tabla
+        textOutput += separator;
+        textOutput += `| ${rpad("Patente", 12)} | ${rpad("Lugar", 5)} | ${rpad("Llave", 5)} | ${rpad("Fecha", 12)} | ${rpad("Hora Ingreso", 18)} | ${rpad("Cobro ($)", 12)} |\n`;
+        textOutput += separator;
+
+        // Filas con datos de vehículos
+        for (const id in vehiculosLocales) {
+            const v = vehiculosLocales[id];
+            const cobroTexto = v.activo ? "Pendiente" : `$${v.totalPagado}`; 
+            if (!v.activo) sumaTotalDia += v.totalPagado;
+
+            textOutput += `| ${rpad(v.patente, 12)} | ${rpad(v.lugar, 5)} | ${rpad(v.llave, 5)} | ${rpad(v.fecha, 12)} | ${rpad(v.hora, 18)} | ${rpad(cobroTexto, 12)} |\n`;
+        }
+
+        textOutput += separator;
+        
+        // Fila de Total Dinámica con auto-relleno para alineación perfecta
+        const totalLabel = `TOTAL DEL DIA RECAUDADO: $${sumaTotalDia}`;
+        const paddingNeeded = 79 - totalLabel.length; // 79 es el espacio interior utilizable
+        textOutput += `| ${totalLabel}${' '.repeat(Math.max(0, paddingNeeded))} |\n`;
+        
+        textOutput += separator;
+
+        // Crear y disparar la descarga del archivo .txt
+        const blob = new Blob([textOutput], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        
+        link.download = `Cierre_Estacionamiento_${fechaHoy}_${horaFormatoB}.txt`;
         link.href = url;
         document.body.appendChild(link);
         link.click();
@@ -277,20 +269,21 @@
     }
 
     // Evento manual de descarga por botón
-    document.getElementById('btnDescargar').addEventListener('click', exportarExcel);
+    document.getElementById('btnDescargar').addEventListener('click', exportarTextoNotepad);
 
     // ====================================================================
-    // SEGURIDAD DE CIERRE: Descarga obligatoria al intentar cerrar la página
+    // SEGURIDAD DE CIERRE: Descarga al detectar intento de salir
     // ====================================================================
     window.addEventListener('beforeunload', function (e) {
-        // 1. Descargar el archivo Excel inmediatamente
-        exportarExcel();
+        // Se ejecuta la descarga en el instante que el navegador pregunta si quiere salir
+        exportarTextoNotepad();
 
-        // 2. Mostrar cuadro de confirmación estándar del navegador
+        // Se genera la confirmación nativa del navegador
         e.preventDefault();
         e.returnValue = 'Se descargará automáticamente el cierre de caja antes de salir. ¿Estás seguro de que deseas cerrar la página?';
         return 'Se descargará automáticamente el cierre de caja antes de salir. ¿Estás seguro de que deseas cerrar la página?';
     });
 </script>
 </body>
+</html>
 </html>
