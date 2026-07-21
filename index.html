@@ -75,7 +75,7 @@
     <!-- Botones de Control -->
     <div class="d-flex justify-content-between mb-5">
         <button id="btnBorrarTodo" class="btn btn-danger" onclick="borrarBaseDatos()">⚠️ Vaciar Registro</button>
-        <button id="btnDescargar" class="btn btn-dark fs-5">⬇️ Descargar Cierre (Notepad / Texto)</button>
+        <button id="btnDescargar" class="btn btn-dark fs-5">🔒 Descargar Cierre (Notepad / Texto)</button>
     </div>
 </div>
 
@@ -114,16 +114,21 @@
                 const tr = document.createElement('tr');
                 tr.id = `fila-${id}`;
 
+                // Preparar celda de Acción (Cobrar)
                 let celdaAccion = '';
+                // Preparar celda de Lugar (con botón de edición si está activo)
+                let celdaLugar = `<span class="badge bg-secondary fs-6">${v.lugar}</span>`;
+
                 if (v.activo) {
                     celdaAccion = `<button class="btn btn-warning btn-sm" onclick="calcularDeuda('${id}')">Calcular Deuda</button>`;
+                    celdaLugar += ` <button class="btn btn-outline-primary btn-sm ms-2" style="padding: 0px 6px;" onclick="cambiarLugar('${id}', '${v.lugar}')" title="Editar lugar">✏️</button>`;
                 } else {
                     celdaAccion = `<span class="badge bg-success fs-6">Total: $${v.totalPagado}</span> <br><small class="text-muted">(${v.minutosTranscurridos || 0} min)</small>`;
                 }
 
                 tr.innerHTML = `
                     <td><strong>${v.patente}</strong></td>
-                    <td><span class="badge bg-secondary fs-6">${v.lugar}</span></td>
+                    <td>${celdaLugar}</td>
                     <td>${v.llave}</td>
                     <td>${v.fecha}</td>
                     <td>${v.hora}</td>
@@ -181,9 +186,36 @@
         document.getElementById('formIngreso').reset();
         document.getElementById('patente').focus();
 
-        // Al ingresar un nuevo dato, bloqueamos el borrado hasta que se vuelva a descargar
         registroDescargado = false; 
     });
+
+    // Cambiar lugar de un vehículo ya ingresado
+    function cambiarLugar(id, lugarActual) {
+        const nuevoLugar = prompt(`El vehículo está actualmente en el lugar ${lugarActual}.\nIngresa el NUEVO número de lugar (1-26):`, lugarActual);
+        
+        // Si el usuario cancela o deja en blanco, no hacemos nada
+        if (nuevoLugar === null || nuevoLugar.trim() === '') return;
+        
+        // Si el usuario ingresa el mismo lugar, no hacemos nada
+        if (nuevoLugar === lugarActual) return;
+        
+        // Validar si el nuevo lugar ya está ocupado
+        let lugarOcupado = false;
+        for (const k in vehiculosLocales) {
+            if (vehiculosLocales[k].lugar === nuevoLugar && vehiculosLocales[k].activo === true) {
+                lugarOcupado = true;
+                break;
+            }
+        }
+
+        if (lugarOcupado) {
+            alert(`⚠️ Error: El lugar número ${nuevoLugar} ya se encuentra ocupado por otro vehículo.`);
+            return;
+        }
+
+        // Si pasa las validaciones, actualizamos en la nube
+        dbRef.child(id).update({ lugar: nuevoLugar });
+    }
 
     // Calcular cobros
     function calcularDeuda(id) {
@@ -213,11 +245,10 @@
             minutosTranscurridos: diferenciaMinutos
         });
 
-        // Al cobrar un vehículo, bloqueamos el borrado hasta que se vuelva a descargar
         registroDescargado = false;
     }
 
-    // FUNCIÓN: Generar y descargar archivo de texto alineado para el Bloc de Notas
+    // FUNCIÓN: Generar y descargar archivo de texto
     function exportarTextoNotepad() {
         let sumaTotalDia = 0;
         
@@ -271,7 +302,7 @@
         link.click();
         document.body.removeChild(link);
 
-        // ABRIMOS EL CANDADO: Como ya se descargó, permitimos borrar la base de datos
+        // ABRIMOS EL CANDADO: Permitimos borrar
         registroDescargado = true;
     }
 
@@ -284,23 +315,35 @@
 
         if(confirm("¿Estás completamente seguro de que deseas eliminar TODOS los registros en la nube? Esta acción es irreversible.")) {
             dbRef.set(null);
-            // Cerramos el candado de nuevo tras el borrado
             registroDescargado = false; 
             alert("✅ La base de datos ha sido limpiada con éxito.");
         }
     }
 
-    // Evento manual de descarga por botón
-    document.getElementById('btnDescargar').addEventListener('click', exportarTextoNotepad);
+    // BOTÓN DE DESCARGA: Ahora protegido con contraseña
+    document.getElementById('btnDescargar').addEventListener('click', function() {
+        const password = prompt("🔒 Seguridad de sistema: Ingrese la contraseña para autorizar la descarga del cierre de caja:");
+        
+        if (password === "fito312") {
+            exportarTextoNotepad();
+        } else if (password !== null) {
+            // Si escribió algo incorrecto (y no presionó "Cancelar")
+            alert("❌ Contraseña incorrecta. Acceso denegado.");
+        }
+    });
 
     // ====================================================================
-    // SEGURIDAD DE CIERRE: Descarga al detectar intento de salir
+    // SEGURIDAD DE CIERRE: Respaldo automático silencioso al salir
     // ====================================================================
     window.addEventListener('beforeunload', function (e) {
         exportarTextoNotepad();
         e.preventDefault();
         e.returnValue = 'Se descargará automáticamente el cierre de caja antes de salir. ¿Estás seguro de que deseas cerrar la página?';
         return 'Se descargará automáticamente el cierre de caja antes de salir. ¿Estás seguro de que deseas cerrar la página?';
+    });
+</script>
+</body>
+</html>
     });
 </script>
 </body>
