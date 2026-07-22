@@ -74,7 +74,10 @@
 
     <!-- Botones de Control -->
     <div class="d-flex justify-content-between mb-5">
-        <button id="btnBorrarTodo" class="btn btn-danger" onclick="borrarBaseDatos()">⚠️ Vaciar Registro</button>
+        <div>
+            <button id="btnBorrarTodo" class="btn btn-danger me-2" onclick="borrarBaseDatos()">⚠️ Vaciar Registro (Seguro)</button>
+            <button id="btnBorrarForzado" class="btn btn-outline-danger" onclick="borrarForzado()">🛑 Borrado Forzado</button>
+        </div>
         <button id="btnDescargar" class="btn btn-dark fs-5">🔒 Descargar Cierre (Notepad / Texto)</button>
     </div>
 </div>
@@ -98,7 +101,7 @@
 
     let vehiculosLocales = {};
     
-    // VARIABLE DE SEGURIDAD: Candado para el borrado
+    // VARIABLE DE SEGURIDAD: Candado para el borrado seguro
     let registroDescargado = false; 
 
     // ESCUCHAR EN TIEMPO REAL
@@ -187,31 +190,23 @@
         registroDescargado = false; 
     });
 
-    // ==========================================
-    // NUEVA FUNCIÓN MEJORADA: Cambiar lugar
-    // ==========================================
+    // Cambiar lugar
     function cambiarLugar(id, lugarActual) {
         const inputUsuario = prompt(`El vehículo está actualmente en el lugar ${lugarActual}.\nIngresa el NUEVO número de lugar (1-26):`, lugarActual);
         
-        // Si el usuario cancela o deja en blanco, detenemos la función
         if (inputUsuario === null || inputUsuario.trim() === '') return;
         
-        // Convertimos el texto ingresado a un número entero
         const nuevoLugarNum = parseInt(inputUsuario, 10);
         
-        // 1. VALIDACIÓN: Comprobar que sea un número y esté entre 1 y 26
         if (isNaN(nuevoLugarNum) || nuevoLugarNum < 1 || nuevoLugarNum > 26) {
             alert("⚠️ Acción rechazada: Solo puedes ingresar números enteros del 1 al 26.");
             return;
         }
         
-        // Convertimos el número de vuelta a texto para guardarlo uniforme en la base de datos
         const nuevoLugarStr = nuevoLugarNum.toString();
 
-        // Si el usuario ingresa exactamente el mismo lugar que ya tenía, no hacemos nada
         if (nuevoLugarStr === String(lugarActual)) return;
         
-        // 2. VALIDACIÓN: Comprobar si el nuevo lugar ya está ocupado
         let lugarOcupado = false;
         for (const k in vehiculosLocales) {
             if (vehiculosLocales[k].lugar == nuevoLugarStr && vehiculosLocales[k].activo === true) {
@@ -225,10 +220,8 @@
             return;
         }
 
-        // Si pasa todas las validaciones sin problemas, actualizamos el dato en la nube
         dbRef.child(id).update({ lugar: nuevoLugarStr });
     }
-    // ==========================================
 
     // Calcular cobros
     function calcularDeuda(id) {
@@ -315,21 +308,36 @@
         link.click();
         document.body.removeChild(link);
 
-        // ABRIMOS EL CANDADO: Permitimos borrar
+        // ABRIMOS EL CANDADO: Permitimos borrar con el botón seguro
         registroDescargado = true;
     }
 
-    // LÓGICA DE BORRADO SEGURO
+    // 1. LÓGICA DE BORRADO SEGURO (El que requiere descargar primero)
     function borrarBaseDatos() {
         if (!registroDescargado) {
             alert("⚠️ ACCIÓN DENEGADA: Debes descargar el archivo de cierre antes de poder vaciar el registro para no perder datos.");
             return;
         }
 
-        if(confirm("¿Estás completamente seguro de que deseas eliminar TODOS los registros en la nube? Esta acción es irreversible.")) {
+        if(confirm("¿Estás seguro de que deseas eliminar TODOS los registros de forma normal?")) {
             dbRef.set(null);
             registroDescargado = false; 
             alert("✅ La base de datos ha sido limpiada con éxito.");
+        }
+    }
+
+    // 2. NUEVA LÓGICA DE BORRADO FORZADO (Con contraseña, ignora el candado)
+    function borrarForzado() {
+        const password = prompt("🔒 Seguridad de sistema: Ingrese la contraseña de administrador para forzar el borrado del registro:");
+        
+        if (password === "fito312") {
+            if(confirm("🛑 ADVERTENCIA ADMIN: Estás a punto de vaciar el registro sin que el sistema valide si fue descargado. ¿Estás absolutamente seguro de eliminar todos los datos?")) {
+                dbRef.set(null);
+                registroDescargado = false; 
+                alert("✅ La base de datos ha sido limpiada a la fuerza con éxito.");
+            }
+        } else if (password !== null) {
+            alert("❌ Contraseña incorrecta. Acceso denegado.");
         }
     }
 
