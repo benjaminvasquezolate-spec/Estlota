@@ -114,9 +114,7 @@
                 const tr = document.createElement('tr');
                 tr.id = `fila-${id}`;
 
-                // Preparar celda de Acción (Cobrar)
                 let celdaAccion = '';
-                // Preparar celda de Lugar (con botón de edición si está activo)
                 let celdaLugar = `<span class="badge bg-secondary fs-6">${v.lugar}</span>`;
 
                 if (v.activo) {
@@ -151,7 +149,7 @@
         // Validar si el lugar ya está ocupado en la nube
         let lugarOcupado = false;
         for (const id in vehiculosLocales) {
-            if (vehiculosLocales[id].lugar === lugar && vehiculosLocales[id].activo === true) {
+            if (vehiculosLocales[id].lugar == lugar && vehiculosLocales[id].activo === true) {
                 lugarOcupado = true;
                 break;
             }
@@ -189,33 +187,48 @@
         registroDescargado = false; 
     });
 
-    // Cambiar lugar de un vehículo ya ingresado
+    // ==========================================
+    // NUEVA FUNCIÓN MEJORADA: Cambiar lugar
+    // ==========================================
     function cambiarLugar(id, lugarActual) {
-        const nuevoLugar = prompt(`El vehículo está actualmente en el lugar ${lugarActual}.\nIngresa el NUEVO número de lugar (1-26):`, lugarActual);
+        const inputUsuario = prompt(`El vehículo está actualmente en el lugar ${lugarActual}.\nIngresa el NUEVO número de lugar (1-26):`, lugarActual);
         
-        // Si el usuario cancela o deja en blanco, no hacemos nada
-        if (nuevoLugar === null || nuevoLugar.trim() === '') return;
+        // Si el usuario cancela o deja en blanco, detenemos la función
+        if (inputUsuario === null || inputUsuario.trim() === '') return;
         
-        // Si el usuario ingresa el mismo lugar, no hacemos nada
-        if (nuevoLugar === lugarActual) return;
+        // Convertimos el texto ingresado a un número entero
+        const nuevoLugarNum = parseInt(inputUsuario, 10);
         
-        // Validar si el nuevo lugar ya está ocupado
+        // 1. VALIDACIÓN: Comprobar que sea un número y esté entre 1 y 26
+        if (isNaN(nuevoLugarNum) || nuevoLugarNum < 1 || nuevoLugarNum > 26) {
+            alert("⚠️ Acción rechazada: Solo puedes ingresar números enteros del 1 al 26.");
+            return;
+        }
+        
+        // Convertimos el número de vuelta a texto para guardarlo uniforme en la base de datos
+        const nuevoLugarStr = nuevoLugarNum.toString();
+
+        // Si el usuario ingresa exactamente el mismo lugar que ya tenía, no hacemos nada
+        if (nuevoLugarStr === String(lugarActual)) return;
+        
+        // 2. VALIDACIÓN: Comprobar si el nuevo lugar ya está ocupado
         let lugarOcupado = false;
         for (const k in vehiculosLocales) {
-            if (vehiculosLocales[k].lugar === nuevoLugar && vehiculosLocales[k].activo === true) {
+            if (vehiculosLocales[k].lugar == nuevoLugarStr && vehiculosLocales[k].activo === true) {
                 lugarOcupado = true;
                 break;
             }
         }
 
         if (lugarOcupado) {
-            alert(`⚠️ Error: El lugar número ${nuevoLugar} ya se encuentra ocupado por otro vehículo.`);
+            alert(`⚠️ Error: El lugar número ${nuevoLugarStr} ya se encuentra ocupado por otro vehículo.`);
             return;
         }
 
-        // Si pasa las validaciones, actualizamos en la nube
-        dbRef.child(id).update({ lugar: nuevoLugar });
+        // Si pasa todas las validaciones sin problemas, actualizamos el dato en la nube
+        dbRef.child(id).update({ lugar: nuevoLugarStr });
     }
+    // ==========================================
 
     // Calcular cobros
     function calcularDeuda(id) {
@@ -320,14 +333,13 @@
         }
     }
 
-    // BOTÓN DE DESCARGA: Ahora protegido con contraseña
+    // BOTÓN DE DESCARGA: Protegido con contraseña
     document.getElementById('btnDescargar').addEventListener('click', function() {
         const password = prompt("🔒 Seguridad de sistema: Ingrese la contraseña para autorizar la descarga del cierre de caja:");
         
         if (password === "fito312") {
             exportarTextoNotepad();
         } else if (password !== null) {
-            // Si escribió algo incorrecto (y no presionó "Cancelar")
             alert("❌ Contraseña incorrecta. Acceso denegado.");
         }
     });
@@ -340,10 +352,6 @@
         e.preventDefault();
         e.returnValue = 'Se descargará automáticamente el cierre de caja antes de salir. ¿Estás seguro de que deseas cerrar la página?';
         return 'Se descargará automáticamente el cierre de caja antes de salir. ¿Estás seguro de que deseas cerrar la página?';
-    });
-</script>
-</body>
-</html>
     });
 </script>
 </body>
